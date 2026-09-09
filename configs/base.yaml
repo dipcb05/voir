@@ -1,0 +1,95 @@
+# =============================================================================
+# Base Configuration — Shared defaults for all experiments
+# =============================================================================
+# All paths, column names, and hyperparameters are configurable.
+# Modality-specific configs inherit and override these values.
+
+# --- Experiment ---
+experiment:
+  name: "base_experiment"
+  seed: 42
+  output_dir: "outputs"
+  log_level: "INFO"             # DEBUG | INFO | WARNING | ERROR
+  smoke_test: false             # If true, use tiny subset for validation
+  smoke_test_samples: 32        # Number of samples in smoke test
+
+# --- Device ---
+device:
+  use_cuda: true                # Auto-detect; falls back to CPU
+  mixed_precision: true         # Use AMP when CUDA available
+  num_workers: 4
+  pin_memory: true
+
+# --- Dataset ---
+dataset:
+  metadata_csv: "dummy_data/metadata.csv"       # Path to patient-level metadata CSV
+  patient_id_col: "patient_id"  # Column name for patient identifier
+  label_col: "label"            # Column name for classification label
+  num_classes: 2                # 2 = binary, >2 = multiclass
+  class_names: null             # Optional list: ["benign", "malignant"]
+  class_weights: null           # Optional list: [1.0, 2.5]
+
+  # Modality path columns (column names in the metadata CSV)
+  radiology_path_col: "radiology_path"
+  pathology_path_col: "pathology_path"
+  genomics_path_col: "genomics_path"
+
+  # Missing modality handling
+  modality_mode: "STRICT_MULTIMODAL"  # STRICT_MULTIMODAL | ALLOW_MISSING_MODALITIES
+
+# --- Splitting ---
+splitting:
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  stratify: true
+  splits_dir: "data/splits"    # Where to save train.csv, val.csv, test.csv
+  existing_splits: null        # If set, load pre-existing split CSVs
+
+# --- Training ---
+training:
+  batch_size: 16
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  epochs: 100
+  optimizer: "adam"             # adam | adamw | sgd
+  scheduler: "cosine"          # cosine | step | plateau | none
+  scheduler_params:
+    step_size: 30
+    gamma: 0.1
+    patience: 10               # For ReduceLROnPlateau
+    T_max: null                # For CosineAnnealing; defaults to epochs
+  gradient_clip_norm: 1.0
+  accumulation_steps: 1
+
+# --- Early Stopping ---
+early_stopping:
+  enabled: true
+  patience: 15
+  metric: "val_auroc"          # Metric to monitor
+  mode: "max"                  # max | min
+
+# --- Checkpointing ---
+checkpoint:
+  save_dir: "outputs/models"
+  save_best: true
+  save_last: true
+  best_metric: "val_auroc"
+  best_mode: "max"
+  resume_from: null             # Path to checkpoint to resume from
+
+# --- Evaluation ---
+evaluation:
+  metrics_dir: "outputs/metrics"
+  figures_dir: "outputs/figures"
+  predictions_dir: "outputs/predictions"
+  figure_format: ["png", "pdf"]
+  figure_dpi: 300
+  confidence_intervals: true
+  bootstrap_n: 1000
+
+# --- Logging ---
+logging:
+  log_dir: "outputs/logs"
+  tensorboard: false
+  log_every_n_steps: 10

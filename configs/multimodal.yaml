@@ -1,0 +1,48 @@
+# =============================================================================
+# Multimodal Fusion Configuration
+# =============================================================================
+# Inherits from base.yaml — only overrides are listed here.
+
+experiment:
+  name: "multimodal_fusion"
+
+# --- Modalities to use ---
+modalities:
+  use_radiology: true
+  use_pathology: true
+  use_genomics: true
+
+# --- Fusion ---
+fusion:
+  method: "gated"               # concat | gated | attention
+  projection_dim: 256           # Common latent space dimension
+  dropout: 0.3
+
+  # Gated fusion specific
+  gated:
+    gate_activation: "sigmoid"  # sigmoid | softmax
+
+  # Attention fusion specific
+  attention:
+    num_heads: 4
+    hidden_dim: 256
+
+  # Return modality contribution weights
+  return_weights: true
+
+# --- Encoder embedding dims (must match individual configs) ---
+encoder_dims:
+  radiology: 512
+  pathology: 512
+  genomics: 256
+
+# --- Classifier ---
+classifier:
+  hidden_dims: [256, 128]
+  dropout: 0.3
+
+# --- Training overrides ---
+training:
+  batch_size: 8
+  learning_rate: 0.0001
+  epochs: 80

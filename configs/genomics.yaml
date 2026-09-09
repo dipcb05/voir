@@ -1,0 +1,39 @@
+# =============================================================================
+# Genomics-Specific Configuration
+# =============================================================================
+# Inherits from base.yaml — only overrides are listed here.
+
+experiment:
+  name: "genomics_only"
+
+# --- Genomics Model ---
+genomics:
+  input_dim: null               # Auto-detected from data; or set explicitly
+  hidden_dims: [1024, 512, 256] # MLP hidden layer dimensions
+  embedding_dim: 256            # Final embedding dimension
+  dropout: 0.3
+  activation: "gelu"            # gelu | relu | leaky_relu
+  normalization: "layernorm"    # layernorm | batchnorm
+
+  # Preprocessing
+  preprocessing:
+    handle_missing: "median"    # median | mean | zero | drop
+    log_transform: true         # Apply log1p transform
+    standardize: true           # Z-score standardization
+    feature_selection:
+      enabled: true
+      method: "variance"        # variance | mad
+      min_variance: 0.1         # Minimum variance threshold
+      top_k: null               # If set, keep top K features by variance
+
+  # Data format
+  expression_file_col: null     # Column in metadata CSV pointing to expression file
+  expression_matrix: "dummy_data/genomics.csv"       # Path to a single expression matrix (genes x patients)
+  gene_id_col: null             # Column for gene identifiers in expression data
+  transpose: false              # Whether expression matrix needs transposing
+
+# --- Training overrides ---
+training:
+  batch_size: 32
+  learning_rate: 0.001
+  epochs: 100

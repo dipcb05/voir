@@ -1,0 +1,55 @@
+# =============================================================================
+# Pathology-Specific Configuration
+# =============================================================================
+# Inherits from base.yaml — only overrides are listed here.
+
+experiment:
+  name: "pathology_only"
+
+# --- Pathology Model ---
+pathology:
+  # Patch encoder
+  backbone: "resnet50"          # resnet50 | resnet18
+  pretrained: true
+  patch_embedding_dim: 512
+  embedding_dim: 512            # Final patient-level embedding
+
+  # MIL settings
+  mil_type: "attention"         # attention | mean | max
+  attention_hidden_dim: 256
+  attention_heads: 1            # For multi-head attention MIL
+  dropout: 0.3
+
+  # Patch input
+  input_mode: "patches"         # patches | wsi (WSI is future interface)
+  max_patches_per_patient: 100  # Limit number of patches per bag
+  patch_size: 256               # Patch pixel size
+
+  # Image preprocessing
+  image_size: 224
+  normalize_mean: [0.485, 0.456, 0.406]
+  normalize_std: [0.229, 0.224, 0.225]
+
+  # Augmentation (training only)
+  augmentation:
+    random_horizontal_flip: true
+    random_vertical_flip: true
+    random_rotation: 90
+    color_jitter:
+      brightness: 0.3
+      contrast: 0.3
+      saturation: 0.2
+      hue: 0.1
+    random_resized_crop: false
+
+  # Patches directory structure
+  # Expected: patches_dir/<patient_id>/*.png
+  # Or: metadata CSV has a column listing patch paths
+  patches_dir: "dummy_data/pathology"             # Base directory for patches
+  patches_manifest_col: null    # Column with comma-separated patch paths
+
+# --- Training overrides ---
+training:
+  batch_size: 8                 # Smaller due to MIL bag loading
+  learning_rate: 0.0001
+  epochs: 50

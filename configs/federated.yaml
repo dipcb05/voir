@@ -1,0 +1,33 @@
+# =============================================================================
+# Federated Learning Configuration
+# =============================================================================
+# Inherits from base.yaml — only overrides are listed here.
+
+experiment:
+  name: "federated_experiment"
+
+# --- Federation ---
+federated:
+  num_clients: 5
+  rounds: 50                    # Number of federated rounds
+  local_epochs: 3               # Local training epochs per round
+  fraction_fit: 1.0             # Fraction of clients per round
+
+  # Partitioning
+  partition:
+    method: "iid"               # iid | non_iid_label_skew
+    alpha: 0.5                  # Dirichlet alpha for non-IID (lower = more skew)
+    min_samples_per_client: 10  # Minimum samples per client
+
+  # Aggregation strategy
+  strategy: "fedavg"            # fedavg | fedprox | scaffold (future)
+  fedprox_mu: 0.01              # Proximal term for FedProx
+
+  # Client output
+  client_splits_dir: "data/splits/federated"
+
+# --- Training overrides ---
+training:
+  batch_size: 8
+  learning_rate: 0.001
+  epochs: 3                     # This is local_epochs in federated context

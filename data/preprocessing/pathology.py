@@ -1,0 +1,61 @@
+"""Pathology patch preprocessing and augmentation transforms."""
+
+from __future__ import annotations
+
+from typing import Any, Dict
+
+from torchvision import transforms
+
+
+def get_pathology_transforms(
+    config: Dict[str, Any],
+    is_training: bool = True,
+) -> transforms.Compose:
+    """
+    Build pathology patch transforms from config.
+
+    Args:
+        config: Pathology config section (config['pathology']).
+        is_training: Whether to include augmentation.
+
+    Returns:
+        torchvision.transforms.Compose pipeline.
+    """
+    image_size = config.get("image_size", 224)
+    normalize_mean = config.get("normalize_mean", [0.485, 0.456, 0.406])
+    normalize_std = config.get("normalize_std", [0.229, 0.224, 0.225])
+    aug_config = config.get("augmentation", {})
+
+    transform_list = []
+
+    if is_training and aug_config:
+        transform_list.append(transforms.Resize((image_size, image_size)))
+
+        if aug_config.get("random_horizontal_flip", False):
+            transform_list.append(transforms.RandomHorizontalFlip(p=0.5))
+        if aug_config.get("random_vertical_flip", False):
+            transform_list.append(transforms.RandomVerticalFlip(p=0.5))
+
+        rotation = aug_config.get("random_rotation", 0)
+        if rotation > 0:
+            transform_list.append(transforms.RandomRotation(rotation))
+
+        cj = aug_config.get("color_jitter", {})
+        if cj:
+            transform_list.append(
+                transforms.ColorJitter(
+                    brightness=cj.get("brightness", 0),
+                    contrast=cj.get("contrast", 0),
+                    saturation=cj.get("saturation", 0),
+                    hue=cj.get("hue", 0),
+                )
+            )
+    else:
+        transform_list.append(transforms.Resize((image_size, image_size)))
+
+    transform_list.extend([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=normalize_mean, std=normalize_std),
+    ])
+
+    return transforms.Compose(transform_list)
