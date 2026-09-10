@@ -22,7 +22,7 @@ device:
 
 # --- Dataset ---
 dataset:
-  metadata_csv: "dummy_data/metadata.csv"       # Path to patient-level metadata CSV
+  metadata_csv: "multimodal_cancer_detection/datasets/metadata.csv"  # Required user-supplied manifest
   patient_id_col: "patient_id"  # Column name for patient identifier
   label_col: "label"            # Column name for classification label
   num_classes: 2                # 2 = binary, >2 = multiclass
@@ -43,7 +43,7 @@ splitting:
   val_ratio: 0.15
   test_ratio: 0.15
   stratify: true
-  splits_dir: "data/splits"    # Where to save train.csv, val.csv, test.csv
+  splits_dir: "outputs/splits" # Where to save train.csv, val.csv, test.csv
   existing_splits: null        # If set, load pre-existing split CSVs
 
 # --- Training ---

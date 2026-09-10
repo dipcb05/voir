@@ -42,7 +42,7 @@ lightning_logs/
 *.safetensors
 
 # Local datasets and potentially sensitive patient data.
-# The versioned dummy_data/ sample set remains available for reproducible demos.
+# Patient data must remain local and out of version control.
 data/
 datasets/
 raw_data/

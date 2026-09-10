@@ -1,0 +1,1 @@
+"""Authenticated VOIR web application."""

@@ -1,74 +1,58 @@
-"""
-Federated Learning Client implementation (using Flower optionally, or standalone simulation).
-"""
-
+"""Production federated client adapter; deploy one at each data-owning site."""
 from __future__ import annotations
-
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List
 import numpy as np
-
 import torch
-from torch.utils.data import DataLoader
-
-from multimodal_cancer_detection.training.trainer import Trainer
 
 
-class FLClient:
-    """
-    Simulation client for Federated Learning.
-    Wraps a Trainer instance.
-    """
+class VOIRProductionClient:
+    """Uses only a site-local trainer and rejects incompatible model payloads."""
+    def __init__(self, trainer_factory: Callable[[], object]):
+        self.trainer = trainer_factory()
+        self.model, self.device = self.trainer.model, self.trainer.device
 
-    def __init__(
-        self,
-        client_id: int,
-        trainer: Trainer,
-    ):
-        self.client_id = client_id
-        self.trainer = trainer
-        self.model = trainer.model
-        self.device = trainer.device
-
-    def get_parameters(self) -> List[np.ndarray]:
-        """Return model parameters as a list of NumPy arrays."""
-        return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
-
-    def get_scoped_state(self, shared_prefixes: Tuple[str, ...]) -> Dict[str, torch.Tensor]:
-        """Export only the registered shared partition for VOIR aggregation."""
-        return {k: v.detach().cpu() for k, v in self.model.state_dict().items() if k.startswith(shared_prefixes)}
-
-    def set_scoped_state(self, state: Dict[str, torch.Tensor]) -> None:
-        current = self.model.state_dict()
-        current.update({k: v.to(self.device) for k, v in state.items() if k in current})
-        self.model.load_state_dict(current)
+    def get_parameters(self, config: Dict | None = None) -> List[np.ndarray]:
+        return [v.detach().cpu().numpy() for v in self.model.state_dict().values()]
 
     def set_parameters(self, parameters: List[np.ndarray]) -> None:
-        """Set model parameters from a list of NumPy arrays."""
-        state_dict = self.model.state_dict()
-        keys = list(state_dict.keys())
-        for k, v in zip(keys, parameters):
-            state_dict[k] = torch.tensor(v).to(self.device)
-        self.model.load_state_dict(state_dict)
+        state = self.model.state_dict()
+        if len(parameters) != len(state):
+            raise ValueError("Rejected incompatible parameter payload.")
+        for key, value in zip(state, parameters):
+            if tuple(value.shape) != tuple(state[key].shape):
+                raise ValueError(f"Rejected incompatible tensor for {key}.")
+            state[key] = torch.as_tensor(value, device=self.device, dtype=state[key].dtype)
+        self.model.load_state_dict(state, strict=True)
 
-    def train(self, epochs: int) -> Dict[str, Any]:
-        """Train locally for E epochs."""
-        self.trainer.epochs = self.trainer.start_epoch + epochs
-        
-        for epoch in range(self.trainer.start_epoch, self.trainer.epochs):
+    def fit(self, parameters: List[np.ndarray], config: Dict):
+        self.set_parameters(parameters)
+        for epoch in range(int(config.get("local_epochs", 1))):
             metrics = self.trainer.train_epoch(epoch)
-            
-        self.trainer.start_epoch += epochs
-        
-        # Return last epoch metrics and num samples
-        return {
-            "metrics": metrics,
-            "num_samples": len(self.trainer.train_loader.dataset)
-        }
+        return self.get_parameters(), len(self.trainer.train_loader.dataset), metrics
 
-    def evaluate(self) -> Dict[str, Any]:
-        """Evaluate locally on validation set."""
+    def evaluate(self, parameters: List[np.ndarray], config: Dict):
+        self.set_parameters(parameters)
         metrics, _ = self.trainer.evaluate(self.trainer.val_loader, prefix="val")
-        return {
-            "metrics": metrics,
-            "num_samples": len(self.trainer.val_loader.dataset)
-        }
+        return float(metrics.get("val_loss", 0.0)), len(self.trainer.val_loader.dataset), metrics
+
+
+def start_production_client(server_address: str, client: VOIRProductionClient, root_certificates: bytes) -> None:
+    try:
+        import flwr as fl
+    except ImportError as exc:
+        raise RuntimeError("Install the production dependency with `pip install flwr`.") from exc
+    class FlowerAdapter(fl.client.NumPyClient):
+        def get_parameters(self, config):
+            return client.get_parameters(config)
+
+        def fit(self, parameters, config):
+            return client.fit(parameters, config)
+
+        def evaluate(self, parameters, config):
+            return client.evaluate(parameters, config)
+
+    fl.client.start_numpy_client(
+        server_address=server_address,
+        client=FlowerAdapter(),
+        root_certificates=root_certificates,
+    )

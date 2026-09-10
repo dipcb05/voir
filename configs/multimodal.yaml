@@ -35,7 +35,7 @@ fusion:
 # relation-aware deliberation, then the action policy may accept/defer/request.
 voir:
   enabled: true
-  index_time_col: null          # ISO-8601 metadata column; null for controlled demo data
+  index_time_col: "index_time" # Required ISO-8601 metadata column
   required_modalities: [radiology, pathology, genomics]
   relation_dim: 256
   relation_heads: 4

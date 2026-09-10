@@ -23,8 +23,23 @@ timm>=0.9.0
 # monai>=1.2.0
 # openslide-python>=1.2.0
 
-# Federated learning (optional, Phase 13)
-# flwr>=1.5.0
+# Production federated networking (coordinator and each independent site)
+flwr>=1.5.0
 
 # Notebook support
 ipykernel>=6.0.0
+
+# Web application and production services
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+jinja2>=3.1.0
+python-multipart>=0.0.9
+sqlalchemy>=2.0.0
+psycopg[binary]>=3.2.0
+alembic>=1.13.0
+passlib[bcrypt]>=1.7.4
+PyJWT>=2.9.0
+celery[redis]>=5.4.0
+boto3>=1.35.0
+slowapi>=0.1.9
+pydantic-settings>=2.4.0

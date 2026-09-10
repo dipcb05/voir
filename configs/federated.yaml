@@ -20,7 +20,7 @@ federated:
     min_samples_per_client: 10  # Minimum samples per client
 
   # Aggregation strategy
-  strategy: "fedavg"            # fedavg | fedprox | scaffold (future)
+  strategy: "fedavg"            # Production coordinator strategy
   fedprox_mu: 0.01              # Proximal term for FedProx
 
   # Client output

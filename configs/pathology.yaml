@@ -21,7 +21,7 @@ pathology:
   dropout: 0.3
 
   # Patch input
-  input_mode: "patches"         # patches | wsi (WSI is future interface)
+  input_mode: "patches"         # Pre-extracted approved tiles only
   max_patches_per_patient: 100  # Limit number of patches per bag
   patch_size: 256               # Patch pixel size
 
@@ -45,7 +45,7 @@ pathology:
   # Patches directory structure
   # Expected: patches_dir/<patient_id>/*.png
   # Or: metadata CSV has a column listing patch paths
-  patches_dir: "dummy_data/pathology"             # Base directory for patches
+  patches_dir: "multimodal_cancer_detection/datasets/pathology"  # Approved patch root
   patches_manifest_col: null    # Column with comma-separated patch paths
 
 # --- Training overrides ---

@@ -28,7 +28,7 @@ genomics:
 
   # Data format
   expression_file_col: null     # Column in metadata CSV pointing to expression file
-  expression_matrix: "dummy_data/genomics.csv"       # Path to a single expression matrix (genes x patients)
+  expression_matrix: "multimodal_cancer_detection/datasets/genomics.csv"  # Required user-supplied matrix
   gene_id_col: null             # Column for gene identifiers in expression data
   transpose: false              # Whether expression matrix needs transposing
 
