@@ -44,7 +44,7 @@ def main():
 
     fed_cfg = config.get("federated", {})
     num_clients = fed_cfg.get("num_clients", 3)
-    num_rounds = fed_cfg.get("num_rounds", 10)
+    num_rounds = fed_cfg.get("rounds", fed_cfg.get("num_rounds", 10))
     local_epochs = fed_cfg.get("local_epochs", 1)
 
     dataset_cfg = config.get("dataset", {})
@@ -64,13 +64,19 @@ def main():
     partitions = create_federated_partitions(
         train_df, 
         num_clients=num_clients, 
-        partition_type=fed_cfg.get("partition_type", "iid"),
+        partition_type=fed_cfg.get("partition", {}).get("method", fed_cfg.get("partition_type", "iid")),
         label_col=dataset_cfg.get("label_col"),
-        alpha=fed_cfg.get("alpha", 0.5),
+        alpha=fed_cfg.get("partition", {}).get("alpha", fed_cfg.get("alpha", 0.5)),
         seed=seed
     )
 
     # Global model
+    # This runner currently has no federated molecular preprocessor.  Make the
+    # supported two-modality baseline explicit rather than constructing an
+    # invalid genomics-enabled model; full VOIR deployments provide a frozen
+    # shared feature interface before this step.
+    config = copy.deepcopy(config)
+    config.setdefault("modalities", {})["use_genomics"] = False
     global_model = MultimodalModel(config=config, genomics_input_dim=None).to(device)
 
     clients = []
@@ -99,8 +105,8 @@ def main():
             "patches_dir": config.get("pathology", {}).get("patches_dir"),
         }
 
-        train_ds = MultimodalDataset(train_df_c, rad_transform, path_transform, **ds_kwargs)
-        val_ds = MultimodalDataset(val_df, eval_rad, eval_path, **ds_kwargs)
+        train_ds = MultimodalDataset(train_df_c, radiology_transform=rad_transform, pathology_transform=path_transform, **ds_kwargs)
+        val_ds = MultimodalDataset(val_df, radiology_transform=eval_rad, pathology_transform=eval_path, **ds_kwargs)
         
         train_loader = DataLoader(train_ds, batch_size=config.get("training", {}).get("batch_size", 8), shuffle=True, collate_fn=multimodal_collate_fn)
         val_loader = DataLoader(val_ds, batch_size=config.get("training", {}).get("batch_size", 8), shuffle=False, collate_fn=multimodal_collate_fn)

@@ -30,6 +30,20 @@ fusion:
   # Return modality contribution weights
   return_weights: true
 
+# VOIR is the paper's protocol layer.  It is intentionally separate from
+# generic latent fusion: source evidence is admitted and aligned before
+# relation-aware deliberation, then the action policy may accept/defer/request.
+voir:
+  enabled: true
+  index_time_col: null          # ISO-8601 metadata column; null for controlled demo data
+  required_modalities: [radiology, pathology, genomics]
+  relation_dim: 256
+  relation_heads: 4
+  acceptance_threshold: 0.80
+  challenge_threshold: 0.20
+  conformal_alpha: 0.10
+  bundle_version: "0.1.0"
+
 # --- Encoder embedding dims (must match individual configs) ---
 encoder_dims:
   radiology: 512

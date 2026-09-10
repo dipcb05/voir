@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 from multimodal_cancer_detection.federated.client import FLClient
-from multimodal_cancer_detection.federated.strategies import aggregate_fedavg
+from multimodal_cancer_detection.federated.strategies import aggregate_fedavg, aggregate_state_dicts
 
 
 class FLServer:
@@ -26,6 +26,30 @@ class FLServer:
         self.clients = clients
         self.strategy = strategy
         self.global_parameters = [val.cpu().numpy() for _, val in self.global_model.state_dict().items()]
+
+    def run_scoped_rounds(self, num_rounds: int, local_epochs: int = 1,
+                          shared_prefixes: tuple[str, ...] = ("deliberation.",)) -> Dict[str, list]:
+        """VOIR federation: aggregate declared relation/deliberation state only.
+
+        Source encoders and site calibration/thresholds remain local by design.
+        A production secure-aggregation backend can consume the same scoped tensors.
+        """
+        history = {"round": [], "upload_bytes": [], "shared_keys": []}
+        global_shared = {k: v.detach().cpu() for k, v in self.global_model.state_dict().items() if k.startswith(shared_prefixes)}
+        for round_idx in range(1, num_rounds + 1):
+            results = []
+            for client in self.clients:
+                client.set_scoped_state(global_shared)
+                client.train(local_epochs)
+                results.append((client.get_scoped_state(shared_prefixes), len(client.trainer.train_loader.dataset)))
+            global_shared = aggregate_state_dicts(results, global_shared.keys())
+            state = self.global_model.state_dict()
+            state.update({k: v.to(next(self.global_model.parameters()).device) for k, v in global_shared.items()})
+            self.global_model.load_state_dict(state)
+            history["round"].append(round_idx)
+            history["shared_keys"].append(sorted(global_shared))
+            history["upload_bytes"].append(sum(v.numel() * v.element_size() for s, _ in results for v in s.values()))
+        return history
 
     def run_rounds(self, num_rounds: int, local_epochs: int = 1) -> Dict[str, list]:
         """Run federated learning rounds."""

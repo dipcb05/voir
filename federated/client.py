@@ -5,6 +5,7 @@ Federated Learning Client implementation (using Flower optionally, or standalone
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
+import numpy as np
 
 import torch
 from torch.utils.data import DataLoader
@@ -31,6 +32,15 @@ class FLClient:
     def get_parameters(self) -> List[np.ndarray]:
         """Return model parameters as a list of NumPy arrays."""
         return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
+
+    def get_scoped_state(self, shared_prefixes: Tuple[str, ...]) -> Dict[str, torch.Tensor]:
+        """Export only the registered shared partition for VOIR aggregation."""
+        return {k: v.detach().cpu() for k, v in self.model.state_dict().items() if k.startswith(shared_prefixes)}
+
+    def set_scoped_state(self, state: Dict[str, torch.Tensor]) -> None:
+        current = self.model.state_dict()
+        current.update({k: v.to(self.device) for k, v in state.items() if k in current})
+        self.model.load_state_dict(current)
 
     def set_parameters(self, parameters: List[np.ndarray]) -> None:
         """Set model parameters from a list of NumPy arrays."""

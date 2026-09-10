@@ -241,25 +241,27 @@ def multimodal_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         "label": torch.stack([item["label"] for item in batch]),
     }
 
-    # Radiology
-    if "radiology_image" in batch[0] and batch[0]["radiology_image"] is not None:
-        rad_images = [item["radiology_image"] for item in batch
-                      if item.get("radiology_image") is not None]
-        if rad_images:
-            collated["radiology_image"] = torch.stack(rad_images, dim=0)
+    # A batch must never silently lose samples: use a zero placeholder plus an
+    # availability mask.  VOIR records the absence as an evidence gap later.
+    first_rad = next((x.get("radiology_image") for x in batch if x.get("radiology_image") is not None), None)
+    if first_rad is not None:
+        collated["radiology_image"] = torch.stack([x.get("radiology_image") if x.get("radiology_image") is not None else torch.zeros_like(first_rad) for x in batch])
+        collated["radiology_available"] = torch.tensor([x.get("radiology_image") is not None for x in batch], dtype=torch.bool)
 
     # Pathology (pad bags)
-    if "pathology_patches" in batch[0]:
-        valid_bags = [(item["pathology_patches"], item["num_patches"])
-                      for item in batch
-                      if item.get("pathology_patches") is not None]
+    if any("pathology_patches" in item for item in batch):
+        valid_bags = [(item["pathology_patches"], item["num_patches"]) for item in batch if item.get("pathology_patches") is not None]
         if valid_bags:
             max_p = max(n for _, n in valid_bags)
             c, h, w = valid_bags[0][0].shape[1:]
             padded = []
             masks = []
             num_patches_list = []
-            for bag, n in valid_bags:
+            for item in batch:
+                bag, n = item.get("pathology_patches"), item.get("num_patches", 0)
+                if bag is None:
+                    bag = torch.zeros(0, c, h, w)
+                    n = 0
                 if n < max_p:
                     pad = torch.zeros(max_p - n, c, h, w)
                     bag = torch.cat([bag, pad], dim=0)
@@ -271,12 +273,12 @@ def multimodal_collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
             collated["pathology_patches"] = torch.stack(padded, dim=0)
             collated["pathology_mask"] = torch.stack(masks, dim=0)
             collated["num_patches"] = torch.tensor(num_patches_list)
+            collated["pathology_available"] = collated["pathology_mask"].any(dim=1)
 
     # Genomics
-    if "genomics_expression" in batch[0]:
-        expr = [item["genomics_expression"] for item in batch
-                if item.get("genomics_expression") is not None]
-        if expr:
-            collated["genomics_expression"] = torch.stack(expr, dim=0)
+    first_expr = next((x.get("genomics_expression") for x in batch if x.get("genomics_expression") is not None), None)
+    if first_expr is not None:
+        collated["genomics_expression"] = torch.stack([x.get("genomics_expression") if x.get("genomics_expression") is not None else torch.zeros_like(first_expr) for x in batch])
+        collated["genomics_available"] = torch.tensor([x.get("genomics_expression") is not None for x in batch], dtype=torch.bool)
 
     return collated

@@ -30,3 +30,11 @@ def aggregate_fedavg(results: List[Tuple[List[np.ndarray], int]]) -> List[np.nda
             aggregated_weights[i] += param * weight
             
     return aggregated_weights
+
+
+def aggregate_state_dicts(results, shared_keys):
+    """FedAvg only named shared parameters; site-private state never leaves clients."""
+    total = sum(n for _, n in results)
+    if not total:
+        raise ValueError("Cannot aggregate an empty client cohort")
+    return {key: sum(state[key].float() * (n / total) for state, n in results) for key in shared_keys}

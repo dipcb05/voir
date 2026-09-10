@@ -16,6 +16,8 @@ from .pathology_encoder import PathologyEncoder
 from .genomics_encoder import GenomicsEncoder
 from .fusion import build_fusion
 from .classifier import ClassifierHead
+from multimodal_cancer_detection.voir.deliberation import VOIRDeliberation
+from multimodal_cancer_detection.voir.selective import SelectivePolicy
 
 
 class MultimodalModel(nn.Module):
@@ -56,6 +58,8 @@ class MultimodalModel(nn.Module):
         num_classes = dataset_cfg.get("num_classes", 2)
 
         projection_dim = fusion_cfg.get("projection_dim", 256)
+        voir_cfg = config.get("voir", {})
+        self.voir_enabled = voir_cfg.get("enabled", False)
 
         # Build modality dims dict for active modalities
         modality_dims: Dict[str, int] = {}
@@ -152,6 +156,16 @@ class MultimodalModel(nn.Module):
             hidden_dims=classifier_cfg.get("hidden_dims", [256, 128]),
             dropout=classifier_cfg.get("dropout", 0.3),
         )
+        self.deliberation = VOIRDeliberation(
+            dim=projection_dim,
+            heads=voir_cfg.get("relation_heads", 4),
+            dropout=fusion_cfg.get("dropout", 0.3),
+        ) if self.voir_enabled else None
+        self.selective_policy = SelectivePolicy(
+            acceptance_threshold=voir_cfg.get("acceptance_threshold", .8),
+            challenge_threshold=voir_cfg.get("challenge_threshold", .2),
+            alpha=voir_cfg.get("conformal_alpha", .1),
+        ) if self.voir_enabled else None
 
     def forward(self, batch: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -197,9 +211,26 @@ class MultimodalModel(nn.Module):
         for name, emb in embeddings.items():
             projected[name] = self.modality_projections[name](emb)
 
-        # Fusion
+        # VOIR deliberation uses only declared, observed source tokens.  The
+        # availability mask is a technical bridge; clinical contracts must
+        # still be admitted by EvidenceContract before calling this model.
         fusion_weights: Dict[str, torch.Tensor] = {}
-        if self.fusion is not None and len(projected) > 1:
+        voir_output = {}
+        if self.deliberation is not None and len(projected) > 1:
+            names = sorted(projected)
+            tokens = torch.stack([projected[n] for n in names], dim=1)
+            available = []
+            for name in names:
+                available.append(batch.get(f"{name}_available", torch.ones(tokens.size(0), dtype=torch.bool, device=tokens.device)).to(tokens.device))
+            available = torch.stack(available, dim=1)
+            comparable = available.unsqueeze(1) & available.unsqueeze(2)
+            comparable &= ~torch.eye(len(names), dtype=torch.bool, device=tokens.device).unsqueeze(0)
+            confidence = available.float() * 0.75
+            uncertainty = (1 - available.float())
+            voir_output = self.deliberation(tokens, confidence, uncertainty, comparable)
+            fused = voir_output["embedding"]
+            fusion_weights = {name: available[:, i].float() for i, name in enumerate(names)}
+        elif self.fusion is not None and len(projected) > 1:
             fused, fusion_weights = self.fusion(projected)
         elif len(projected) == 1:
             name = list(projected.keys())[0]
@@ -211,9 +242,17 @@ class MultimodalModel(nn.Module):
         # Classify
         logits = self.classifier(fused)
 
+        if self.selective_policy is not None:
+            coverage = torch.stack(list(fusion_weights.values()), dim=1).mean(1) if fusion_weights else torch.ones_like(logits)
+            voir_output["selective"] = self.selective_policy.decide(
+                logits, voir_output["challenge"], coverage,
+                gap_sensitivity=1 - coverage, requestable=coverage < 1,
+            )
+
         return {
             "logits": logits,
             "embeddings": embeddings,
             "fused_embedding": fused,
             "fusion_weights": fusion_weights,
+            "voir": voir_output,
         }
